@@ -10,22 +10,17 @@ KssCompiler.prototype.constructor = KssCompiler;
 function KssCompiler(sourceTree, options) {
   if (!(this instanceof KssCompiler)) return new KssCompiler(sourceTree, options);
   this.sourceTree = sourceTree;
-  console.log(this.sourceTree);
   this.options = options || {};
 };
 
 KssCompiler.prototype.write = function(readTree, destDir) {
-  console.log('write')
   var self = this
-  return new RSVP.Promise(function(resolve, reject){
-    console.log('promise', self.sourceTree)
+  return new RSVP.Promise(function(resolve, reject) {
     return readTree(self.sourceTree).then(function(srcDir) {
-      console.log(srcDir);
       var kssDir = destDir + '/' + (self.options.destDir || '');
-      console.log(kssDir);
       mkdirp.sync(path.dirname(kssDir));
       self.compile(srcDir, kssDir, self.options.sassFile, self.options.templateDir, resolve, reject);
-    }, function(e){
+    }, function(e) {
       console.error('Error', e)
     });
   });
@@ -56,7 +51,7 @@ KssCompiler.prototype.compile = function(sourceDir, destDir, sassFile, templateD
     argv;
 
   console.log('required a bunch of stuff');
-  console.log('read template dir', options.templateDirectory)
+  // console.log('read template dir', options.templateDirectory)
 
   // Compile the Handlebars template
   // What's this template for?
@@ -67,13 +62,13 @@ KssCompiler.prototype.compile = function(sourceDir, destDir, sassFile, templateD
   // Create a new "styleguide" directory and copy the contents
   // of "public" over.
   try {
-    console.log('destination dir', options.destinationDirectory);
+    // console.log('destination dir', options.destinationDirectory);
     fs.mkdirSync(options.destinationDirectory);
   } catch (e) {
     console.log('Tried to make a styleguide directory', e);
   }
 
-  console.log('copy dirs', options.templateDirectory + '/public',  options.destinationDirectory + '/public' );
+  // console.log('copy dirs', options.templateDirectory + '/public', options.destinationDirectory + '/public');
 
   // you need a public directory in the kss/templates folder
   wrench.copyDirSyncRecursive(
@@ -100,13 +95,13 @@ KssCompiler.prototype.compile = function(sourceDir, destDir, sassFile, templateD
       // Write the compiled LESS styles from the template.
       fs.writeFileSync(options.destinationDirectory + '/public/kss.css', css, 'utf8');
 
-      console.log('precompiler', preCompiler)
-      // console.log('...parsing your styleguide');
+      // console.log('precompiler', preCompiler)
+      // console.log('...parsing your styleguide', options.sourceDirectory);
       kss.traverse(options.sourceDirectory, {
         multiline: true,
-        markdown: true,
+        markdown: false,
         markup: true,
-        // mask: preCompiler.mask
+        // mask: '*.scss'
       }, function(err, sg) {
         if (err) {
           console.log(err);
@@ -114,9 +109,10 @@ KssCompiler.prototype.compile = function(sourceDir, destDir, sassFile, templateD
           throw err
         }
 
+        // console.log('sg', sg)
         styleguide = sg;
-
-        var sections = styleguide.section('*.'),
+        // console.log(styleguide.section());
+        var sections = styleguide.section(),
           i, sectionCount = sections.length,
           sectionRoots = [],
           currentRoot,
@@ -127,8 +123,8 @@ KssCompiler.prototype.compile = function(sourceDir, destDir, sassFile, templateD
           return ' - ' + file
         }).join('\n'))
 
-        console.log('sections', sections, sections.length);
-        console.log('currentRoot', currentRoot);
+        // console.log('sections', sections, sections.length);
+        // console.log('currentRoot', currentRoot);
         // Accumulate all of the sections' first indexes
         // in case they don't have a root element.
         for (i = 0; i < sectionCount; i += 1) {
@@ -145,11 +141,11 @@ KssCompiler.prototype.compile = function(sourceDir, destDir, sassFile, templateD
         rootCount = sectionRoots.length;
 
         console.log('rootCount', rootCount)
-        // Now, group all of the sections by their root
-        // reference, and make a page for each.
+          // Now, group all of the sections by their root
+          // reference, and make a page for each.
         for (i = 0; i < rootCount; i += 1) {
           childSections = styleguide.section(sectionRoots[i] + '.*');
-
+          console.log('child sections', childSections);
           // generate pages
           console.log('generate pages', i)
           generatePage(
@@ -221,13 +217,15 @@ KssCompiler.prototype.compile = function(sourceDir, destDir, sassFile, templateD
 
   // Convert an array of `KssModifier` instances to a JSON object.
   jsonModifiers = function(modifiers) {
-    return modifiers.map(function(modifier) {
+    var mods =  modifiers.map(function(modifier) {
       return {
         name: modifier.name(),
         description: modifier.description(),
         className: modifier.className()
       };
     });
+    console.log('..........JSONMODIFIERS.........', modifiers);
+    return mods;
   };
 
   /**
@@ -250,7 +248,7 @@ KssCompiler.prototype.compile = function(sourceDir, destDir, sassFile, templateD
 
   /**
    * Returns a single section, found by its reference number
-   * @param  {String|Number} reference The reference number to search for.
+   * @param {String|Number} reference The reference number to search for.
    */
   handlebars.registerHelper('section', function(reference) {
     var section = styleguide.section(reference);
@@ -262,7 +260,7 @@ KssCompiler.prototype.compile = function(sourceDir, destDir, sassFile, templateD
   /**
    * Loop over a section query. If a number is supplied, will convert into
    * a query for all children and descendants of that reference.
-   * @param  {Mixed} query The section query
+   * @param {Mixed} query The section query
    */
   handlebars.registerHelper('eachSection', function(query) {
     var sections,
@@ -304,9 +302,9 @@ KssCompiler.prototype.compile = function(sourceDir, destDir, sassFile, templateD
    * Equivalent to "if the current section is X levels deep". e.g:
    *
    * {{#refDepth 1}}
-   *   ROOT ELEMENTS ONLY
-   *  {{else}}
-   *   ANYTHING ELSE
+   * ROOT ELEMENTS ONLY
+   * {{else}}
+   * ANYTHING ELSE
    * {{/refDepth}}
    */
   handlebars.registerHelper('whenDepth', function(depth, context) {
@@ -323,7 +321,7 @@ KssCompiler.prototype.compile = function(sourceDir, destDir, sassFile, templateD
 
   /**
    * Similar to the {#eachSection} helper, however will loop over each modifier
-   * @param  {Object} section Supply a section object to loop over it's modifiers. Defaults to the current section.
+   * @param {Object} section Supply a section object to loop over it's modifiers. Defaults to the current section.
    */
   handlebars.registerHelper('eachModifier', function(section) {
     var modifiers, i, l, buffer = '';
@@ -343,7 +341,7 @@ KssCompiler.prototype.compile = function(sourceDir, destDir, sassFile, templateD
 
   /**
    * Outputs a modifier's markup, if possible.
-   * @param  {Object} modifier Specify a particular modifier object. Defaults to the current modifier.
+   * @param {Object} modifier Specify a particular modifier object. Defaults to the current modifier.
    */
   handlebars.registerHelper('modifierMarkup', function(modifier) {
     modifier = arguments.length < 2 ? this : modifier || this || false;
@@ -352,22 +350,25 @@ KssCompiler.prototype.compile = function(sourceDir, destDir, sassFile, templateD
       return false;
     }
 
-    // Maybe it's actually a section?
     if (modifier.modifiers) {
       return new handlebars.SafeString(
         modifier.markup
       );
     }
 
-    // Otherwise return the modifier markup
+    var kssMod = new kss.KssModifier(modifier);
+    var className = kssMod.className();
+    var markup = kssMod.markup();
+    // Added replace statement manually
+    markup = markup.replace(/\{\$modifiers\}/g, className);
     return new handlebars.SafeString(
-      new kss.KssModifier(modifier).markup()
+      markup
     );
   });
 
   /**
    * Quickly avoid escaping strings
-   * @param  {String} arg The unescaped HTML
+   * @param {String} arg The unescaped HTML
    */
   handlebars.registerHelper('html', function(arg) {
     return new handlebars.SafeString(arg || '');
