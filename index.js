@@ -2,7 +2,6 @@ var Writer = require('broccoli-writer');
 var RSVP = require('rsvp');
 var path = require('path');
 var mkdirp = require('mkdirp');
-var shell = require('shelljs/global');
 
 module.exports = KssCompiler;
 KssCompiler.prototype = Object.create(Writer.prototype);
@@ -136,16 +135,12 @@ KssCompiler.prototype.compile = function(sourceDir, destDir, sassFile, templateD
         for (i = 0; i < rootCount; i += 1) {
           childSections = styleguide.section(sectionRoots[i] + '.*');
 
-          if (exec('ember g bl-route catalogue/section-'+sectionRoots[i]).code !== 0) {
-            echo('Cant generate');
-            exit(1);
-          }
-
-          // Run process cmd here
           generatePage(
             styleguide, childSections,
             sectionRoots[i], pages, sectionRoots
           );
+
+       
         }
 
         generateIndex(styleguide, childSections, pages, sectionRoots);
