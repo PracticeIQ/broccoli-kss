@@ -10,24 +10,28 @@ KssCompiler.prototype.constructor = KssCompiler;
 function KssCompiler(sourceTree, options) {
   if (!(this instanceof KssCompiler)) return new KssCompiler(sourceTree, options);
   this.sourceTree = sourceTree;
+  console.log(this.sourceTree);
   this.options = options || {};
 };
 
 KssCompiler.prototype.write = function(readTree, destDir) {
+  console.log('write')
   var self = this
-  return new RSVP.Promise(function(resolve, reject) {
+  return new RSVP.Promise(function(resolve, reject){
+    console.log('promise', self.sourceTree)
     return readTree(self.sourceTree).then(function(srcDir) {
+      console.log(srcDir);
       var kssDir = destDir + '/' + (self.options.destDir || '');
       mkdirp.sync(path.dirname(kssDir));
       self.compile(srcDir, kssDir, self.options.sassFile, self.options.templateDir, resolve, reject);
-    }, function(e) {
-      console.error('Error', e)
+    }, function(e){
+      console.error('Error for .write', e)
     });
   });
 };
 
 KssCompiler.prototype.compile = function(sourceDir, destDir, sassFile, templateDir, resolve, reject) {
-  console.log('compile');
+  console.log('compile', sourceDir);
   var kss = require('kss'),
     preCompiler = kss.precompilers,
     handlebars = require('handlebars'),
@@ -51,7 +55,7 @@ KssCompiler.prototype.compile = function(sourceDir, destDir, sassFile, templateD
     argv;
 
   console.log('required a bunch of stuff');
-  // console.log('read template dir', options.templateDirectory)
+  console.log('read template dir', options.templateDirectory)
 
   // Compile the Handlebars template
   // What's this template for?
@@ -63,12 +67,16 @@ KssCompiler.prototype.compile = function(sourceDir, destDir, sassFile, templateD
   // of "public" over.
   try {
     // console.log('destination dir', options.destinationDirectory);
+    
     fs.mkdirSync(options.destinationDirectory);
+
+    fs.mkdirSync('app/templates/catalogue');
+
   } catch (e) {
     console.log('Tried to make a styleguide directory', e);
   }
 
-  // console.log('copy dirs', options.templateDirectory + '/public', options.destinationDirectory + '/public');
+  console.log('copy dirs', options.templateDirectory + '/public',  options.destinationDirectory + '/public' );
 
   // you need a public directory in the kss/templates folder
   wrench.copyDirSyncRecursive(
@@ -96,7 +104,7 @@ KssCompiler.prototype.compile = function(sourceDir, destDir, sassFile, templateD
       fs.writeFileSync(options.destinationDirectory + '/public/kss.css', css, 'utf8');
 
       // console.log('precompiler', preCompiler)
-      // console.log('...parsing your styleguide', options.sourceDirectory);
+      console.log('...parsing your styleguide', options.sourceDirectory);
       kss.traverse(options.sourceDirectory, {
         multiline: true,
         markdown: false,
@@ -119,9 +127,9 @@ KssCompiler.prototype.compile = function(sourceDir, destDir, sassFile, templateD
           rootCount, childSections = [],
           pages = {};
 
-        console.log(sg.data.files.map(function(file) {
-          return ' - ' + file
-        }).join('\n'))
+        // console.log(sg.data.files.map(function(file) {
+        //   return ' - ' + file
+        // }).join('\n'))
 
         // console.log('sections', sections, sections.length);
         // console.log('currentRoot', currentRoot);
@@ -135,19 +143,17 @@ KssCompiler.prototype.compile = function(sourceDir, destDir, sassFile, templateD
           }
         }
 
-        console.log('sectionRoots', sectionRoots);
+        // console.log('sectionRoots', sectionRoots);
 
         sectionRoots.sort();
         rootCount = sectionRoots.length;
 
-        console.log('rootCount', rootCount)
-          // Now, group all of the sections by their root
-          // reference, and make a page for each.
+        // console.log('rootCount', rootCount)
+        // Now, group all of the sections by their root
+        // reference, and make a page for each.
         for (i = 0; i < rootCount; i += 1) {
           childSections = styleguide.section(sectionRoots[i] + '.*');
-          console.log('child sections', childSections);
-          // generate pages
-          console.log('generate pages', i)
+          // Run process cmd here
           generatePage(
             styleguide, childSections,
             sectionRoots[i], pages, sectionRoots
@@ -168,7 +174,11 @@ KssCompiler.prototype.compile = function(sourceDir, destDir, sassFile, templateD
       styleguide.section(root) ? styleguide.section(root).header() : 'Unnamed',
       ']'
     );
-    fs.writeFileSync(options.destinationDirectory + '/section-' + root + '.html',
+
+    try{
+
+// files are not getting overwritten
+    fs.writeFileSync('app/templates/catalogue'+ '/section-' + root + '.hbs',
       template({
         styleguide: styleguide,
         sections: jsonSections(sections),
@@ -178,35 +188,40 @@ KssCompiler.prototype.compile = function(sourceDir, destDir, sassFile, templateD
         argv: argv || {}
       })
     );
+  }catch(e) {
+    console.error(e)
+  }
   };
 
   // Equivalent to generatePage, however will take `styleguide.md` and render it
   // using first Markdown and then Handlebars
   generateIndex = function(styleguide, sections, pages, sectionRoots) {
     try {
-      // console.log('...generating styleguide overview');
-      fs.writeFileSync(options.destinationDirectory + '/index.html',
+      console.log('...generating styleguide overview');
+      fs.writeFileSync('app/templates/catalogue/index.hbs',
         template({
           styleguide: styleguide,
           sectionRoots: sectionRoots,
           sections: jsonSections(sections),
           rootNumber: 0,
           argv: argv || {},
-          overview: marked(fs.readFileSync(options.sourceDirectory + '/styleguide.md', 'utf8'))
+          overview: marked(fs.readFileSync('app/styles/styleguide.md', 'utf8'))
         })
       );
     } catch (e) {
-      // console.log('...no styleguide overview generated:', e.message);
+      console.log('...no styleguide overview generated:', e.message);
     }
   };
 
   // Convert an array of `KssSection` instances to a JSON object.
   jsonSections = function(sections) {
     return sections.map(function(section) {
+
       return {
         header: section.header(),
         description: section.description(),
         reference: section.reference(),
+        // linkTo: '{{link-to '+ JSON.stringify(section.reference())+'}}',
         depth: section.data.refDepth,
         deprecated: section.deprecated(),
         experimental: section.experimental(),
@@ -217,15 +232,13 @@ KssCompiler.prototype.compile = function(sourceDir, destDir, sassFile, templateD
 
   // Convert an array of `KssModifier` instances to a JSON object.
   jsonModifiers = function(modifiers) {
-    var mods =  modifiers.map(function(modifier) {
+    return modifiers.map(function(modifier) {
       return {
         name: modifier.name(),
         description: modifier.description(),
         className: modifier.className()
       };
     });
-    console.log('..........JSONMODIFIERS.........', modifiers);
-    return mods;
   };
 
   /**
@@ -246,9 +259,16 @@ KssCompiler.prototype.compile = function(sourceDir, destDir, sassFile, templateD
     return success ? content(this) : content.inverse(this);
   });
 
+  handlebars.registerHelper('linkTo', function(options){
+    if(!options && !options.hash) return '';
+    var reference = options.hash.name || '';
+    var label = options.hash.label;
+    return '{{#link-to catalogue/section-'+reference+'}}'+label+'{{/link-to}}';
+  })
+
   /**
    * Returns a single section, found by its reference number
-   * @param {String|Number} reference The reference number to search for.
+   * @param  {String|Number} reference The reference number to search for.
    */
   handlebars.registerHelper('section', function(reference) {
     var section = styleguide.section(reference);
@@ -260,7 +280,7 @@ KssCompiler.prototype.compile = function(sourceDir, destDir, sassFile, templateD
   /**
    * Loop over a section query. If a number is supplied, will convert into
    * a query for all children and descendants of that reference.
-   * @param {Mixed} query The section query
+   * @param  {Mixed} query The section query
    */
   handlebars.registerHelper('eachSection', function(query) {
     var sections,
@@ -302,9 +322,9 @@ KssCompiler.prototype.compile = function(sourceDir, destDir, sassFile, templateD
    * Equivalent to "if the current section is X levels deep". e.g:
    *
    * {{#refDepth 1}}
-   * ROOT ELEMENTS ONLY
-   * {{else}}
-   * ANYTHING ELSE
+   *   ROOT ELEMENTS ONLY
+   *  {{else}}
+   *   ANYTHING ELSE
    * {{/refDepth}}
    */
   handlebars.registerHelper('whenDepth', function(depth, context) {
@@ -321,13 +341,14 @@ KssCompiler.prototype.compile = function(sourceDir, destDir, sassFile, templateD
 
   /**
    * Similar to the {#eachSection} helper, however will loop over each modifier
-   * @param {Object} section Supply a section object to loop over it's modifiers. Defaults to the current section.
+   * @param  {Object} section Supply a section object to loop over it's modifiers. Defaults to the current section.
    */
   handlebars.registerHelper('eachModifier', function(section) {
     var modifiers, i, l, buffer = '';
 
     // Default to current modifiers, but allow supplying a custom section
     if (section.data) modifiers = section.data.modifiers;
+    // console.log('modifier', section.data);
     modifiers = modifiers || this.modifiers || false;
 
     if (!modifiers) return {};
@@ -341,7 +362,7 @@ KssCompiler.prototype.compile = function(sourceDir, destDir, sassFile, templateD
 
   /**
    * Outputs a modifier's markup, if possible.
-   * @param {Object} modifier Specify a particular modifier object. Defaults to the current modifier.
+   * @param  {Object} modifier Specify a particular modifier object. Defaults to the current modifier.
    */
   handlebars.registerHelper('modifierMarkup', function(modifier) {
     modifier = arguments.length < 2 ? this : modifier || this || false;
@@ -350,25 +371,28 @@ KssCompiler.prototype.compile = function(sourceDir, destDir, sassFile, templateD
       return false;
     }
 
+    // Maybe it's actually a section?
     if (modifier.modifiers) {
       return new handlebars.SafeString(
         modifier.markup
       );
     }
 
+    // Otherwise return the modifier markup
+    // Markup is not set correctly because thismethod returns false
     var kssMod = new kss.KssModifier(modifier);
     var className = kssMod.className();
     var markup = kssMod.markup();
     // Added replace statement manually
-    markup = markup.replace(/\{\$modifiers\}/g, className);
-    return new handlebars.SafeString(
-      markup
-    );
+     markup = markup.replace(/\{\$modifiers\}/g, className);
+        return new handlebars.SafeString(
+          markup
+       );
   });
 
   /**
    * Quickly avoid escaping strings
-   * @param {String} arg The unescaped HTML
+   * @param  {String} arg The unescaped HTML
    */
   handlebars.registerHelper('html', function(arg) {
     return new handlebars.SafeString(arg || '');
