@@ -42,5 +42,8 @@
   "readmeFilename": "README.md",
   "_id": "broccoli-kss@0.0.7",
   "_shasum": "02588254bad18905159b2cab50a503ada90bb469",
-  "_from": "broccoli-kss@latest"
+  "_from": "broccoli-kss@latest",
+  "devDependencies": {
+    "shelljs": "^0.4.0"
+  }
 }
