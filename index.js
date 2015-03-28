@@ -2,7 +2,7 @@ var Writer = require('broccoli-writer');
 var RSVP = require('rsvp');
 var path = require('path');
 var mkdirp = require('mkdirp');
-var shell = require('shelljs');
+var shell = require('shelljs/global');
 
 module.exports = KssCompiler;
 KssCompiler.prototype = Object.create(Writer.prototype);
