@@ -10,20 +10,17 @@ KssCompiler.prototype.constructor = KssCompiler;
 function KssCompiler(sourceTree, options) {
   if (!(this instanceof KssCompiler)) return new KssCompiler(sourceTree, options);
   this.sourceTree = sourceTree;
-  console.log(this.sourceTree);
   this.options = options || {};
 };
 
 KssCompiler.prototype.write = function(readTree, destDir) {
-  console.log('write')
   var self = this
   return new RSVP.Promise(function(resolve, reject){
-    console.log('promise', self.sourceTree)
     return readTree(self.sourceTree).then(function(srcDir) {
-      console.log(srcDir);
       var kssDir = destDir + '/' + (self.options.destDir || '');
       mkdirp.sync(path.dirname(kssDir));
       self.compile(srcDir, kssDir, self.options.sassFile, self.options.templateDir, resolve, reject);
+
     }, function(e){
       console.error('Error for .write', e)
     });
@@ -31,7 +28,6 @@ KssCompiler.prototype.write = function(readTree, destDir) {
 };
 
 KssCompiler.prototype.compile = function(sourceDir, destDir, sassFile, templateDir, resolve, reject) {
-  console.log('compile', sourceDir);
   var kss = require('kss'),
     preCompiler = kss.precompilers,
     handlebars = require('handlebars'),
@@ -54,23 +50,16 @@ KssCompiler.prototype.compile = function(sourceDir, destDir, sassFile, templateD
     KSS_FAILED = false,
     argv;
 
-  console.log('required a bunch of stuff');
-  console.log('read template dir', options.templateDirectory)
-
   // Compile the Handlebars template
   // What's this template for?
   template = fs.readFileSync(options.templateDirectory + '/index.html', 'utf8');
-  console.log('read a template')
   template = handlebars.compile(template);
-  console.log('compiled a template');
   // Create a new "styleguide" directory and copy the contents
   // of "public" over.
   try {
-    // console.log('destination dir', options.destinationDirectory);
-    
     fs.mkdirSync(options.destinationDirectory);
 
-    fs.mkdirSync('app/templates/catalogue');
+    mkdirp.sync('app/templates/catalogue');
 
   } catch (e) {
     console.log('Tried to make a styleguide directory', e);
@@ -84,8 +73,6 @@ KssCompiler.prototype.compile = function(sourceDir, destDir, sassFile, templateD
     options.destinationDirectory + '/public'
   );
 
-  console.log('added stuff to public')
-
   // Generate the static HTML pages in the next tick, i.e. after the other functions have
   // been defined and handlebars helpers set up.
   process.nextTick(function() {
@@ -97,8 +84,6 @@ KssCompiler.prototype.compile = function(sourceDir, destDir, sassFile, templateD
       }
 
       css = cleanCss.process(css);
-
-      console.log('cleanedCSS');
 
       // Write the compiled LESS styles from the template.
       fs.writeFileSync(options.destinationDirectory + '/public/kss.css', css, 'utf8');
@@ -117,9 +102,8 @@ KssCompiler.prototype.compile = function(sourceDir, destDir, sassFile, templateD
           throw err
         }
 
-        // console.log('sg', sg)
         styleguide = sg;
-        // console.log(styleguide.section());
+
         var sections = styleguide.section(),
           i, sectionCount = sections.length,
           sectionRoots = [],
@@ -131,8 +115,7 @@ KssCompiler.prototype.compile = function(sourceDir, destDir, sassFile, templateD
         //   return ' - ' + file
         // }).join('\n'))
 
-        // console.log('sections', sections, sections.length);
-        // console.log('currentRoot', currentRoot);
+
         // Accumulate all of the sections' first indexes
         // in case they don't have a root element.
         for (i = 0; i < sectionCount; i += 1) {
@@ -143,12 +126,10 @@ KssCompiler.prototype.compile = function(sourceDir, destDir, sassFile, templateD
           }
         }
 
-        // console.log('sectionRoots', sectionRoots);
-
         sectionRoots.sort();
         rootCount = sectionRoots.length;
 
-        // console.log('rootCount', rootCount)
+
         // Now, group all of the sections by their root
         // reference, and make a page for each.
         for (i = 0; i < rootCount; i += 1) {
@@ -165,6 +146,8 @@ KssCompiler.prototype.compile = function(sourceDir, destDir, sassFile, templateD
       });
     });
   });
+
+  
 
   // Renders the handlebars template for a section and saves it to a file.
   // Needs refactoring for clarity.
