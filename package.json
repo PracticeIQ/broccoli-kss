@@ -23,7 +23,7 @@
   },
   "homepage": "https://github.com/habdelra/broccoli-kss",
   "dependencies": {
-    "async": "0.1.x",
+    "async": "^0.1.22",
     "broccoli-writer": "^0.1.1",
     "clean-css": "0.3.x",
     "handlebars": "1.0.5beta",
@@ -33,6 +33,7 @@
     "mkdirp": "^0.3.5",
     "natural": "0.0.65",
     "optimist": "0.3.x",
+    "rimraf": "^2.3.2",
     "rsvp": "^3.0.4",
     "sass": "0.5.x",
     "shelljs": "^0.4.0",

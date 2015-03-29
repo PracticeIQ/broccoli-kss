@@ -2,6 +2,9 @@ var Writer = require('broccoli-writer');
 var RSVP = require('rsvp');
 var path = require('path');
 var mkdirp = require('mkdirp');
+var shell = require('shelljs/global');
+var async = require('async');
+var rimraf = require('rimraf');
 
 module.exports = KssCompiler;
 KssCompiler.prototype = Object.create(Writer.prototype);
@@ -57,8 +60,8 @@ KssCompiler.prototype.compile = function(sourceDir, destDir, sassFile, templateD
   // Create a new "styleguide" directory and copy the contents
   // of "public" over.
   try {
-    fs.mkdirSync(options.destinationDirectory);
 
+    fs.mkdirSync(options.destinationDirectory);
     mkdirp.sync('app/templates/catalogue');
 
   } catch (e) {
@@ -129,26 +132,51 @@ KssCompiler.prototype.compile = function(sourceDir, destDir, sassFile, templateD
         sectionRoots.sort();
         rootCount = sectionRoots.length;
 
+        console.log(sectionRoots)
 
-        // Now, group all of the sections by their root
-        // reference, and make a page for each.
-        for (i = 0; i < rootCount; i += 1) {
-          childSections = styleguide.section(sectionRoots[i] + '.*');
-
-          generatePage(
-            styleguide, childSections,
-            sectionRoots[i], pages, sectionRoots
-          );
-
-       
+        // delete existing folders and files
+        
+        try{
+          rimraf.sync('app/templates/catalogue', function() {
+            console.log('Deleted app/templates/catalogue')
+          })
+          rimraf.sync('app/routes/catalogue', function() {
+            console.log('Deleted app/routes/catalogue')
+          })
+        }catch(e){
+          console.log('TRIED RIMRAF ', e);
         }
 
-        generateIndex(styleguide, childSections, pages, sectionRoots);
-        resolve();
+        async.forEach(sectionRoots, generateRoutes, function(err){
+            // Now, group all of the sections by their root
+            // reference, and make a page for each.
+            for (i = 0; i < rootCount; i += 1) {
+              childSections = styleguide.section(sectionRoots[i] + '.*');
+              generatePage(
+                styleguide, childSections,
+                sectionRoots[i], pages, sectionRoots
+              );
+            }
+            generateIndex(styleguide, childSections, pages, sectionRoots);
+            resolve();
+        });
+       
+     
       });
     });
   });
 
+
+  generateRoutes = function(index, cb) {
+    console.log('generating route for section-', index)
+    try{
+     var cmd =  exec('ember g bl-route catalogue/section-'+index+' --verbose', {silent: true}, function() {
+        cb();
+      });  
+   }catch(e) {
+    console.log('ERROR WTH EXEC, ', e);
+   }
+  };
   
 
   // Renders the handlebars template for a section and saves it to a file.
