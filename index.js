@@ -132,10 +132,7 @@ KssCompiler.prototype.compile = function(sourceDir, destDir, sassFile, templateD
         sectionRoots.sort();
         rootCount = sectionRoots.length;
 
-        console.log(sectionRoots)
-
         // delete existing folders and files
-        
         try{
           rimraf.sync('app/templates/catalogue', function() {
             console.log('Deleted app/templates/catalogue')
@@ -147,36 +144,20 @@ KssCompiler.prototype.compile = function(sourceDir, destDir, sassFile, templateD
           console.log('TRIED RIMRAF ', e);
         }
 
-        async.forEach(sectionRoots, generateRoutes, function(err){
-            // Now, group all of the sections by their root
-            // reference, and make a page for each.
-            for (i = 0; i < rootCount; i += 1) {
-              childSections = styleguide.section(sectionRoots[i] + '.*');
-              generatePage(
-                styleguide, childSections,
-                sectionRoots[i], pages, sectionRoots
-              );
-            }
-            generateIndex(styleguide, childSections, pages, sectionRoots);
-            resolve();
-        });
-       
-     
+         for (i = 0; i < rootCount; i += 1) {
+          childSections = styleguide.section(sectionRoots[i] + '.*');
+          exec('ember g bl-route catalogue/section'+sectionRoots[i]+' --verbose', {silent: true})
+          generatePage(
+            styleguide, childSections,
+            sectionRoots[i], pages, sectionRoots
+          );
+        }
+        generateIndex(styleguide, childSections, pages, sectionRoots);
+        resolve();
+      
       });
     });
   });
-
-
-  generateRoutes = function(index, cb) {
-    console.log('generating route for section-', index)
-    try{
-     var cmd =  exec('ember g bl-route catalogue/section-'+index+' --verbose', {silent: true}, function() {
-        cb();
-      });  
-   }catch(e) {
-    console.log('ERROR WTH EXEC, ', e);
-   }
-  };
   
 
   // Renders the handlebars template for a section and saves it to a file.
@@ -191,7 +172,7 @@ KssCompiler.prototype.compile = function(sourceDir, destDir, sassFile, templateD
     try{
 
 // files are not getting overwritten
-    fs.writeFileSync('app/templates/catalogue'+ '/section-' + root + '.hbs',
+    fs.writeFileSync('app/templates/catalogue'+ '/section' + root + '.hbs',
       template({
         styleguide: styleguide,
         sections: jsonSections(sections),
@@ -276,7 +257,7 @@ KssCompiler.prototype.compile = function(sourceDir, destDir, sassFile, templateD
     if(!options && !options.hash) return '';
     var reference = options.hash.name || '';
     var label = options.hash.label;
-    return '{{#link-to catalogue/section-'+reference+'}}'+label+'{{/link-to}}';
+    return '{{#link-to catalogue/section'+reference+'}}'+label+'{{/link-to}}';
   })
 
   /**
