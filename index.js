@@ -18,17 +18,17 @@ function KssCompiler(sourceTree, options) {
 
 KssCompiler.prototype.write = function(readTree, destDir) {
   var self = this
-  return new RSVP.Promise(function(resolve, reject){
+  return new RSVP.Promise(function(resolve, reject) {
     return readTree(self.sourceTree).then(function(srcDir) {
       var kssDir = destDir + '/' + (self.options.destDir || '');
       mkdirp.sync(path.dirname(kssDir));
       self.compile(srcDir, kssDir, self.options.sassFile, self.options.templateDir, resolve, reject);
-
-    }, function(e){
+    }, function(e) {
       console.error('Error for .write', e)
     });
   });
 };
+
 
 KssCompiler.prototype.compile = function(sourceDir, destDir, sassFile, templateDir, resolve, reject) {
   var kss = require('kss'),
@@ -68,7 +68,7 @@ KssCompiler.prototype.compile = function(sourceDir, destDir, sassFile, templateD
     console.log('Tried to make a styleguide directory', e);
   }
 
-  console.log('copy dirs', options.templateDirectory + '/public',  options.destinationDirectory + '/public' );
+  console.log('copy dirs', options.templateDirectory + '/public', options.destinationDirectory + '/public');
 
   // you need a public directory in the kss/templates folder
   wrench.copyDirSyncRecursive(
@@ -89,7 +89,12 @@ KssCompiler.prototype.compile = function(sourceDir, destDir, sassFile, templateD
       css = cleanCss.process(css);
 
       // Write the compiled LESS styles from the template.
-      fs.writeFileSync(options.destinationDirectory + '/public/kss.css', css, 'utf8');
+      try {
+        fs.writeFileSync(options.destinationDirectory + '/public/kss.css', css, 'utf8');
+      } catch (e) {
+        console.log('Compile catalogue styles')
+      }
+
 
       // console.log('precompiler', preCompiler)
       console.log('...parsing your styleguide', options.sourceDirectory);
@@ -133,20 +138,21 @@ KssCompiler.prototype.compile = function(sourceDir, destDir, sassFile, templateD
         rootCount = sectionRoots.length;
 
         // delete existing folders and files
-        try{
+        try {
           rimraf.sync('app/templates/catalogue', function() {
             console.log('Deleted app/templates/catalogue')
           })
           rimraf.sync('app/routes/catalogue', function() {
             console.log('Deleted app/routes/catalogue')
           })
-        }catch(e){
+        } catch (e) {
           console.log('TRIED RIMRAF ', e);
         }
 
-         for (i = 0; i < rootCount; i += 1) {
+        for (i = 0; i < rootCount; i += 1) {
           childSections = styleguide.section(sectionRoots[i] + '.*');
-          exec('ember g bl-route catalogue/section'+sectionRoots[i]+' --verbose', {silent: true})
+          exec('ember g bl-route catalogue/section' + sectionRoots[i] + ' --verbose')
+            // , {silent: true}
           generatePage(
             styleguide, childSections,
             sectionRoots[i], pages, sectionRoots
@@ -154,11 +160,11 @@ KssCompiler.prototype.compile = function(sourceDir, destDir, sassFile, templateD
         }
         generateIndex(styleguide, childSections, pages, sectionRoots);
         resolve();
-      
+
       });
     });
   });
-  
+
 
   // Renders the handlebars template for a section and saves it to a file.
   // Needs refactoring for clarity.
@@ -169,22 +175,21 @@ KssCompiler.prototype.compile = function(sourceDir, destDir, sassFile, templateD
       ']'
     );
 
-    try{
+    try {
 
-// files are not getting overwritten
-    fs.writeFileSync('app/templates/catalogue'+ '/section' + root + '.hbs',
-      template({
-        styleguide: styleguide,
-        sections: jsonSections(sections),
-        rootNumber: root,
-        sectionRoots: sectionRoots,
-        overview: false,
-        argv: argv || {}
-      })
-    );
-  }catch(e) {
-    console.error(e)
-  }
+      fs.writeFileSync('app/templates/catalogue' + '/section' + root + '.hbs',
+        template({
+          styleguide: styleguide,
+          sections: jsonSections(sections),
+          rootNumber: root,
+          sectionRoots: sectionRoots,
+          overview: false,
+          argv: argv || {}
+        })
+      );
+    } catch (e) {
+      console.error('generatePage: ', e)
+    }
   };
 
   // Equivalent to generatePage, however will take `styleguide.md` and render it
@@ -215,7 +220,6 @@ KssCompiler.prototype.compile = function(sourceDir, destDir, sassFile, templateD
         header: section.header(),
         description: section.description(),
         reference: section.reference(),
-        // linkTo: '{{link-to '+ JSON.stringify(section.reference())+'}}',
         depth: section.data.refDepth,
         deprecated: section.deprecated(),
         experimental: section.experimental(),
@@ -253,11 +257,11 @@ KssCompiler.prototype.compile = function(sourceDir, destDir, sassFile, templateD
     return success ? content(this) : content.inverse(this);
   });
 
-  handlebars.registerHelper('linkTo', function(options){
-    if(!options && !options.hash) return '';
+  handlebars.registerHelper('linkTo', function(options) {
+    if (!options && !options.hash) return '';
     var reference = options.hash.name || '';
     var label = options.hash.label;
-    return '{{#link-to catalogue/section'+reference+'}}'+label+'{{/link-to}}';
+    return '{{#link-to catalogue/section' + reference + '}}' + label + '{{/link-to}}';
   })
 
   /**
@@ -378,10 +382,10 @@ KssCompiler.prototype.compile = function(sourceDir, destDir, sassFile, templateD
     var className = kssMod.className();
     var markup = kssMod.markup();
     // Added replace statement manually
-     markup = markup.replace(/\{\$modifiers\}/g, className);
-        return new handlebars.SafeString(
-          markup
-       );
+    markup = markup.replace(/\{\$modifiers\}/g, className);
+    return new handlebars.SafeString(
+      markup
+    );
   });
 
   /**
@@ -392,6 +396,16 @@ KssCompiler.prototype.compile = function(sourceDir, destDir, sassFile, templateD
     return new handlebars.SafeString(arg || '');
   });
 
+
+  handlebars.registerHelper('raw', function(arg) {
+    var left = new RegExp('{', 'g');
+    var right = new RegExp('}', 'g');
+    arg = arg.replace(left, '&#123;');
+    arg = arg.replace(right, '&#125;')
+    return arg;
+  });
+
+  // not being removed after
   process.on('exit', function() {
     if (!KSS_FAILED) {
       console.log('');
