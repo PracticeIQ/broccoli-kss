@@ -383,11 +383,24 @@ KssCompiler.prototype.compile = function(sourceDir, indexDir, templateOutput, ro
    * Enable rendering raw handlebars in a hbs template
    */
   handlebars.registerHelper('raw', function(arg) {
-    var left = new RegExp('{', 'g');
-    var right = new RegExp('}', 'g');
-    arg = arg.replace(left, '&#123;');
-    arg = arg.replace(right, '&#125;')
-    return arg;
+    var escape = {
+      "&": "&amp;",
+      "<": "&lt;",
+      ">": "&gt;",
+      '"': '"',
+      "'": "&#x27;",
+      "`": "&#x60;",
+      "{": "&#123;",
+      "}": "&#125;"
+    };
+
+    function escapeChar(chr) {
+      return escape[chr];
+    }
+
+    var badChars = /[&<>"'`{}]/g;
+    arg = arg.replace(badChars, escapeChar);
+    return new handlebars.SafeString(arg);
   });
 
   // not being removed after
