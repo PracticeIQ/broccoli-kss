@@ -5,17 +5,37 @@ var mkdirp = require('mkdirp');
 var shell = require('shelljs/global');
 var async = require('async');
 var rimraf = require('rimraf');
+var RouterGenerator = require("ember-router-generator");
+var kss = require('kss');
+var handlebars = require('handlebars');
+var optimist = require('optimist');
+var marked = require('marked');
+var async = require('async');
+var fs = require('fs');
+var c = require('colors');
+
 
 module.exports = KssCompiler;
 KssCompiler.prototype = Object.create(Writer.prototype);
 KssCompiler.prototype.constructor = KssCompiler;
 
+/**
+ * KSSCompiler
+ * @constructor
+ * @desc The constructor for the KSS compiler
+ * @param {Object} sourceTree A Broccoli file tree
+ * @param {Object} options    Build options
+ */
 function KssCompiler(sourceTree, options) {
   if (!(this instanceof KssCompiler)) return new KssCompiler(sourceTree, options);
   this.sourceTree = sourceTree;
   this.options = options || {};
 };
 
+/**
+ * write
+ * @desc Returns a promise to generate catalogue templates
+ */
 KssCompiler.prototype.write = function(readTree, destDir) {
   var self = this
   return new RSVP.Promise(function(resolve, reject) {
@@ -24,26 +44,18 @@ KssCompiler.prototype.write = function(readTree, destDir) {
       mkdirp.sync(path.dirname(kssDir));
       self.compile(srcDir, kssDir, self.options.sassFile, self.options.templateDir, resolve, reject);
     }, function(e) {
-      console.error('Error for .write', e)
+      console.error(c.red('Error for .write', e))
     });
   });
 };
 
 
 KssCompiler.prototype.compile = function(sourceDir, destDir, sassFile, templateDir, resolve, reject) {
-  var kss = require('kss'),
-    preCompiler = kss.precompilers,
-    handlebars = require('handlebars'),
-    cleanCss = require('clean-css'),
-    optimist = require('optimist'),
-    marked = require('marked'),
-    wrench = require('wrench'),
-    stylus = require('stylus'),
-    async = require('async'),
-    util = require('util'),
-    less = require('less'),
-    fs = require('fs'),
-    template, styleguide,
+
+  console.log('');
+  console.log(c.green('Starting the catalogue generator'));
+
+  var template, styleguide,
     generatePage, generateStylesheet,
     options = {
       templateDirectory: templateDir,
@@ -53,130 +65,104 @@ KssCompiler.prototype.compile = function(sourceDir, destDir, sassFile, templateD
     KSS_FAILED = false,
     argv;
 
-  // Compile the Handlebars template
-  // What's this template for?
+  console.log(c.bgGreen('Compiling'), c.green('the base index.html template from ' + options.templateDirectory));
+
   template = fs.readFileSync(options.templateDirectory + '/index.html', 'utf8');
   template = handlebars.compile(template);
-  // Create a new "styleguide" directory and copy the contents
-  // of "public" over.
-  try {
 
-    fs.mkdirSync(options.destinationDirectory);
-    mkdirp.sync('app/templates/catalogue');
 
-  } catch (e) {
-    console.log('Tried to make a styleguide directory', e);
-  }
-
-  console.log('copy dirs', options.templateDirectory + '/public', options.destinationDirectory + '/public');
-
-  // you need a public directory in the kss/templates folder
-  wrench.copyDirSyncRecursive(
-    options.templateDirectory + '/public',
-    options.destinationDirectory + '/public'
-  );
-
-  // Generate the static HTML pages in the next tick, i.e. after the other functions have
-  // been defined and handlebars helpers set up.
   process.nextTick(function() {
-    console.log('\n...compiling KSS styles');
-    less.render('@import "' + path.relative(process.cwd(), options.destinationDirectory) + '/public/kss.less";', function(err, css) {
+
+    kss.traverse(options.sourceDirectory, {
+      multiline: true,
+      markdown: false,
+      markup: true
+    }, function(err, sg) {
       if (err) {
-        console.error(err);
-        reject(err)
+        console.error(c.bgRed('Error parsing styles with kss ' + err));
+        reject(err);
+        throw err
       }
 
-      css = cleanCss.process(css);
+      styleguide = sg;
 
-      // Write the compiled LESS styles from the template.
-      try {
-        fs.writeFileSync(options.destinationDirectory + '/public/kss.css', css, 'utf8');
-      } catch (e) {
-        console.log('Compile catalogue styles')
-      }
+      var sections = styleguide.section(),
+        i, sectionCount = sections.length,
+        sectionRoots = [],
+        currentRoot,
+        rootCount, childSections = [],
+        pages = {};
 
-
-      // console.log('precompiler', preCompiler)
-      console.log('...parsing your styleguide', options.sourceDirectory);
-      kss.traverse(options.sourceDirectory, {
-        multiline: true,
-        markdown: false,
-        markup: true,
-        // mask: '*.scss'
-      }, function(err, sg) {
-        if (err) {
-          console.log(err);
-          reject(err);
-          throw err
+      // Accumulate all of the sections' first indexes
+      // in case they don't have a root element.
+      for (i = 0; i < sectionCount; i += 1) {
+        currentRoot = sections[i].reference().match(/[0-9]*\.?/)[0].replace('.', '');
+        if (!~sectionRoots.indexOf(currentRoot)) {
+          sectionRoots.push(currentRoot);
         }
+      }
 
-        styleguide = sg;
-
-        var sections = styleguide.section(),
-          i, sectionCount = sections.length,
-          sectionRoots = [],
-          currentRoot,
-          rootCount, childSections = [],
-          pages = {};
-
-        // console.log(sg.data.files.map(function(file) {
-        //   return ' - ' + file
-        // }).join('\n'))
+      sectionRoots.sort();
+      rootCount = sectionRoots.length;
 
 
-        // Accumulate all of the sections' first indexes
-        // in case they don't have a root element.
-        for (i = 0; i < sectionCount; i += 1) {
-          currentRoot = sections[i].reference().match(/[0-9]*\.?/)[0].replace('.', '');
+      for (i = 0; i < rootCount; i += 1) {
+        childSections = styleguide.section(sectionRoots[i] + '.*');
 
-          if (!~sectionRoots.indexOf(currentRoot)) {
-            sectionRoots.push(currentRoot);
+        // Make sure the routes and templates directories exist
+        mkdirp.sync('app/templates/catalogue');
+        mkdirp.sync('app/routes/catalogue');
+
+        // Add the route files to the router map
+        addRouteToMap(process.cwd(), {
+          entity: {
+            name: 'catalogue/section' + sectionRoots[i]
           }
-        }
+        });
 
-        sectionRoots.sort();
-        rootCount = sectionRoots.length;
+        // Make sure the templates directory exists
+        mkdirp.sync('app/templates/catalogue');
 
-        // delete existing folders and files
-        try {
-          rimraf.sync('app/templates/catalogue', function() {
-            console.log('Deleted app/templates/catalogue')
-          })
-          rimraf.sync('app/routes/catalogue', function() {
-            console.log('Deleted app/routes/catalogue')
-          })
-        } catch (e) {
-          console.log('TRIED RIMRAF ', e);
-        }
+        // Generate the template files
+        generatePage(
+          styleguide, childSections,
+          sectionRoots[i], pages, sectionRoots
+        );
+      }
 
-        for (i = 0; i < rootCount; i += 1) {
-          childSections = styleguide.section(sectionRoots[i] + '.*');
-          exec('ember g bl-route catalogue/section' + sectionRoots[i] + ' --verbose')
-            // , {silent: true}
-          generatePage(
-            styleguide, childSections,
-            sectionRoots[i], pages, sectionRoots
-          );
-        }
-        generateIndex(styleguide, childSections, pages, sectionRoots);
-        resolve();
-
-      });
+      // Generate the main index file based on styleguide.md
+      generateIndex(styleguide, childSections, pages, sectionRoots);
+      resolve();
     });
   });
 
 
+  // Generate an 'empty' route file for each catalogue page
+  generateRouteFile = function(routerFilePath) {
+    var newContents = "import Ember from \"ember\";\nexport default Ember.Route.extend({});";
+    console.log(c.green('Generated route [', routerFilePath + '.js ]'));
+
+    fs.writeFileSync(routerFilePath + '.js', newContents);
+  }
+
+  // Add the route to the app's router-map
+  addRouteToMap = function(target, options) {
+    var routerFilePath = path.join(target, "addon", "router-map.js");
+    var routerFileContents = fs.readFileSync(routerFilePath, "utf-8");
+    generateRouteFile('app/routes/' + options.entity.name);
+    var routes = new RouterGenerator(routerFileContents);
+    var newRouterContents = routes.add(options.entity.name).code();
+    fs.writeFileSync(routerFilePath, newRouterContents);
+  }
+
   // Renders the handlebars template for a section and saves it to a file.
   // Needs refactoring for clarity.
   generatePage = function(styleguide, sections, root, pages, sectionRoots) {
-    console.log(
-      '...generating section ' + root + ' [',
+    console.log(c.green('Generated template ' + root + ' [',
       styleguide.section(root) ? styleguide.section(root).header() : 'Unnamed',
-      ']'
-    );
+      ']'));
 
     try {
-
       fs.writeFileSync('app/templates/catalogue' + '/section' + root + '.hbs',
         template({
           styleguide: styleguide,
@@ -188,15 +174,15 @@ KssCompiler.prototype.compile = function(sourceDir, destDir, sassFile, templateD
         })
       );
     } catch (e) {
-      console.error('generatePage: ', e)
+      console.error(c.bgRed('Error generating page'), c.red(e));
     }
   };
 
-  // Equivalent to generatePage, however will take `styleguide.md` and render it
+  // Equivalent to generatePage, however will take `catalogue.md` and render it
   // using first Markdown and then Handlebars
   generateIndex = function(styleguide, sections, pages, sectionRoots) {
     try {
-      console.log('...generating styleguide overview');
+      console.log(c.green('Generated overview at [ app/templates/catalogue/index.hbs ]'));
       fs.writeFileSync('app/templates/catalogue/index.hbs',
         template({
           styleguide: styleguide,
@@ -204,11 +190,11 @@ KssCompiler.prototype.compile = function(sourceDir, destDir, sassFile, templateD
           sections: jsonSections(sections),
           rootNumber: 0,
           argv: argv || {},
-          overview: marked(fs.readFileSync('app/styles/styleguide.md', 'utf8'))
+          overview: marked(fs.readFileSync('vendor/catalogue/catalogue.md', 'utf8'))
         })
       );
     } catch (e) {
-      console.log('...no styleguide overview generated:', e.message);
+      console.error(c.bgRed('Error generating overview file'), c.red(e));
     }
   };
 
@@ -346,7 +332,6 @@ KssCompiler.prototype.compile = function(sourceDir, destDir, sassFile, templateD
 
     // Default to current modifiers, but allow supplying a custom section
     if (section.data) modifiers = section.data.modifiers;
-    // console.log('modifier', section.data);
     modifiers = modifiers || this.modifiers || false;
 
     if (!modifiers) return {};
@@ -397,6 +382,9 @@ KssCompiler.prototype.compile = function(sourceDir, destDir, sassFile, templateD
   });
 
 
+  /**
+   * Enable rendering raw handlebars in a hbs template
+   */
   handlebars.registerHelper('raw', function(arg) {
     var left = new RegExp('{', 'g');
     var right = new RegExp('}', 'g');
