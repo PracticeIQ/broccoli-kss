@@ -105,14 +105,13 @@ KssCompiler.prototype.compile = function(sourceDir, indexDir, templateOutput, ro
       sectionRoots.sort();
       rootCount = sectionRoots.length;
 
+      // Make sure the routes and templates directories exist
+      mkdirp.sync(options.templatesDir);
+      mkdirp.sync(options.routesDir);
 
       for (i = 0; i < rootCount; i += 1) {
         childSections = styleguide.section(sectionRoots[i] + '.*');
 
-
-        // Make sure the routes and templates directories exist
-        mkdirp.sync(options.templatesDir);
-        mkdirp.sync(options.routesDir);
 
         // Add the route files to the router map
         addRouteToMap(process.cwd(), {
