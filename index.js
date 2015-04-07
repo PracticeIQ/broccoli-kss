@@ -136,7 +136,7 @@ KssCompiler.prototype.compile = function(sourceDir, indexDir, templateOutput, ro
 
   // Generate an 'empty' route file for each catalogue page
   generateRouteFile = function(routerFilePath) {
-    var newContents = "import Ember from \"ember\";\nexport default Ember.Route.extend({});";
+    var newContents = "import Ember from \"ember\";\nexport default Ember.Route.extend({controllerName: \"catalogue\"});";
     console.log(c.blue('Generated route [', routerFilePath + '.js ]'));
 
     fs.writeFileSync(routerFilePath + '.js', newContents);
